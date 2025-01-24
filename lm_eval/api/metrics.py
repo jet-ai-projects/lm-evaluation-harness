@@ -246,6 +246,26 @@ def perplexity_fn(items):  # This is a passthrough function
 
 
 @register_metric(
+    metric="gold_loss",
+    higher_is_better=False,
+    output_type="multiple_choice",
+    aggregation="mean",
+)
+def gold_loss_fn(items):
+    return items
+
+
+@register_metric(
+    metric="gold_loss_norm",
+    higher_is_better=False,
+    output_type="multiple_choice",
+    aggregation="mean",
+)
+def gold_loss_norm_fn(items):
+    return items
+
+
+@register_metric(
     metric="word_perplexity",
     higher_is_better=False,
     output_type="loglikelihood_rolling",
