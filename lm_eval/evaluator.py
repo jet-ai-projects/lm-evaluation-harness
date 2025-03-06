@@ -68,6 +68,7 @@ def simple_evaluate(
     fewshot_as_multiturn: bool = False,
     gen_kwargs: Optional[str] = None,
     task_manager: Optional[TaskManager] = None,
+    task_dict: str = None,
     verbosity: str = "INFO",
     predict_only: bool = False,
     random_seed: int = 0,
@@ -75,6 +76,8 @@ def simple_evaluate(
     torch_random_seed: int = 1234,
     fewshot_random_seed: int = 1234,
     confirm_run_unsafe_code: bool = False,
+    return_runtime_cache: bool = False,
+    add_additional_info: bool = False,
 ):
     """Instantiate and evaluate a model on a list of tasks.
 
@@ -233,59 +236,62 @@ def simple_evaluate(
     if task_manager is None:
         task_manager = TaskManager(verbosity)
 
-    task_dict = get_task_dict(tasks, task_manager)
+    if task_dict is None:
 
-    # helper function to recursively apply config overrides to leaf subtasks, skipping their constituent groups.
-    # (setting of num_fewshot ; bypassing metric calculation ; setting fewshot seed)
-    def _adjust_config(task_dict):
-        adjusted_task_dict = {}
-        for task_name, task_obj in task_dict.items():
-            if isinstance(task_obj, dict):
-                adjusted_task_dict = {
-                    **adjusted_task_dict,
-                    **{task_name: _adjust_config(task_obj)},
-                }
+        task_dict = get_task_dict(tasks, task_manager)
 
-            else:
-                if task_obj.get_config("output_type") == "generate_until":
-                    if gen_kwargs is not None:
-                        task_obj.set_config(
-                            key="generation_kwargs", value=gen_kwargs, update=True
-                        )
+        # helper function to recursively apply config overrides to leaf subtasks, skipping their constituent groups.
+        # (setting of num_fewshot ; bypassing metric calculation ; setting fewshot seed)
+        def _adjust_config(task_dict):
+            adjusted_task_dict = {}
+            for task_name, task_obj in task_dict.items():
+                if isinstance(task_obj, dict):
+                    adjusted_task_dict = {
+                        **adjusted_task_dict,
+                        **{task_name: _adjust_config(task_obj)},
+                    }
 
-                if predict_only:
-                    eval_logger.info(
-                        f"Processing {task_name} in output-only mode. Metrics will not be calculated!"
-                    )
-                    # we have to change the class properties post-hoc. This is pretty hacky.
-                    task_obj.override_metric(metric_name="bypass")
-
-                # override tasks' fewshot values to the provided num_fewshot arg value
-                # except if tasks have it set to 0 manually in their configs--then we should never overwrite that
-                if num_fewshot is not None:
-                    if (default_num_fewshot := task_obj.get_config("num_fewshot")) == 0:
-                        eval_logger.info(
-                            f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
-                        )
-                    else:
-                        eval_logger.warning(
-                            f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
-                        )
-                        task_obj.set_config(key="num_fewshot", value=num_fewshot)
                 else:
-                    # if num_fewshot not provided, and the task does not define a default one, default to 0
-                    if (
-                        default_num_fewshot := task_obj.get_config("num_fewshot")
-                    ) is None:
-                        task_obj.set_config(key="num_fewshot", value=0)
-                # fewshot_random_seed set for tasks, even with a default num_fewshot (e.g. in the YAML file)
-                task_obj.set_fewshot_seed(seed=fewshot_random_seed)
+                    if task_obj.get_config("output_type") == "generate_until":
+                        if gen_kwargs is not None:
+                            task_obj.set_config(
+                                key="generation_kwargs", value=gen_kwargs, update=True
+                            )
 
-                adjusted_task_dict[task_name] = task_obj
+                    if predict_only:
+                        eval_logger.info(
+                            f"Processing {task_name} in output-only mode. Metrics will not be calculated!"
+                        )
+                        # we have to change the class properties post-hoc. This is pretty hacky.
+                        task_obj.override_metric(metric_name="bypass")
 
-        return adjusted_task_dict
+                    # override tasks' fewshot values to the provided num_fewshot arg value
+                    # except if tasks have it set to 0 manually in their configs--then we should never overwrite that
+                    if num_fewshot is not None:
+                        if (default_num_fewshot := task_obj.get_config("num_fewshot")) == 0:
+                            eval_logger.info(
+                                f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
+                            )
+                        else:
+                            eval_logger.warning(
+                                f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
+                            )
+                            task_obj.set_config(key="num_fewshot", value=num_fewshot)
+                    else:
+                        # if num_fewshot not provided, and the task does not define a default one, default to 0
+                        assert task_obj.get_config("num_fewshot") is None
+                        if (
+                            default_num_fewshot := task_obj.get_config("num_fewshot")
+                        ) is None:
+                            task_obj.set_config(key="num_fewshot", value=0)
+                    # fewshot_random_seed set for tasks, even with a default num_fewshot (e.g. in the YAML file)
+                    task_obj.set_fewshot_seed(seed=fewshot_random_seed)
 
-    task_dict = _adjust_config(task_dict)
+                    adjusted_task_dict[task_name] = task_obj
+
+            return adjusted_task_dict
+
+        task_dict = _adjust_config(task_dict)
 
     if check_integrity:
         run_task_tests(task_list=tasks)
@@ -353,9 +359,13 @@ def simple_evaluate(
         )
         results["git_hash"] = get_git_commit_hash()
         results["date"] = start_date
-        add_env_info(results)  # additional environment info to results
-        add_tokenizer_info(results, lm)  # additional info about tokenizer
-        return results
+        if add_additional_info:
+            add_env_info(results)  # additional environment info to results
+            add_tokenizer_info(results, lm)  # additional info about tokenizer
+        if return_runtime_cache:
+            return results, {"task_dict": task_dict, "task_manager": task_manager}
+        else:
+            return results
     else:
         return None
 
