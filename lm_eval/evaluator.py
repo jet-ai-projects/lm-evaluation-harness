@@ -291,7 +291,6 @@ def simple_evaluate(
                             task_obj.set_config(key="num_fewshot", value=num_fewshot)
                     else:
                         # if num_fewshot not provided, and the task does not define a default one, default to 0
-                        assert task_obj.get_config("num_fewshot") is None
                         if (
                             default_num_fewshot := task_obj.get_config("num_fewshot")
                         ) is None:
@@ -334,8 +333,8 @@ def simple_evaluate(
         verbosity=verbosity,
         confirm_run_unsafe_code=confirm_run_unsafe_code,
     )
-    if verbosity is not None:
-        lm_eval.setup_logging(verbosity=verbosity)
+    # if verbosity is not None:
+    #     lm_eval.setup_logging(verbosity=verbosity)
 
     if lm.rank == 0:
         if isinstance(model, str):
