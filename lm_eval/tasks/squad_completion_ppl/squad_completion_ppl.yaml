@@ -1,0 +1,2 @@
+task: squad_completion_ppl
+class: !function task.SQUADCompletionPPL
