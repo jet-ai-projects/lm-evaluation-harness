@@ -41,4 +41,4 @@ class SWDEPPL(ConfigurableTask):
         return doc["text"]
 
     def doc_to_target(self, doc):
-        return doc["value"]
+        return " " + doc["value"]
