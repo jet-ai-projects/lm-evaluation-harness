@@ -2,6 +2,7 @@ import re
 from typing import List
 
 import numpy as np
+from deepcopy import deepcopy
 
 from lm_eval.api.instance import Instance
 from lm_eval.api.task import ConfigurableTask
@@ -46,12 +47,15 @@ class SQUADCompletion(ConfigurableTask):
             language description, as well as the few shot examples, and the question
             part of the document for `doc`.
         """
-        apply_chat_template = kwargs.pop("apply_chat_template", False)        
+        arguments = deepcopy(self.config.generation_kwargs)
+        arguments["until"] = arguments.get("until", ["\n"])
+        arguments["max_gen_toks"] = arguments.get("max_gen_toks", 48)
+        arguments["do_sample"] = arguments.get("do_sample", False)
         return [
             Instance(
                 request_type="generate_until",
                 doc=doc,
-                arguments=(ctx, {"until": ["\n"], "max_gen_toks": 48, "do_sample": False}),
+                arguments=(ctx, arguments),
                 idx=0,
                 **kwargs,
             )
