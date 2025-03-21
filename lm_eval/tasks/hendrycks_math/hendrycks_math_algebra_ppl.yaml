@@ -1,0 +1,20 @@
+tag:
+  - math_word_problems
+task: hendrycks_math_algebra_ppl
+dataset_path: EleutherAI/hendrycks_math
+process_docs: !function utils.process_docs
+dataset_name: algebra
+output_type: loglikelihood
+training_split: train
+test_split: test
+doc_to_text:  "Problem: {{problem}}\nAnswer:"
+doc_to_target: " {{answer}}"
+target_delimiter: ""
+metric_list:
+  - metric: perplexity
+    aggregation: perplexity
+    higher_is_better: false
+metadata:
+  version: 1.0
+dataset_kwargs:
+  trust_remote_code: true

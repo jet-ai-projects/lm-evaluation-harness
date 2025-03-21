@@ -1,0 +1,20 @@
+tag:
+  - math_word_problems
+task: gsm8k_ppl
+dataset_path: gsm8k
+dataset_name: main
+output_type: loglikelihood
+training_split: train
+fewshot_split: train
+test_split: test
+doc_to_text: "Question: {{question}}\nAnswer:"
+doc_to_target: " {{answer}}" #" {{answer.split('### ')[-1].rstrip()}}"
+target_delimiter: ""
+metric_list:
+  - metric: perplexity
+    aggregation: perplexity
+    higher_is_better: false
+repeats: 1
+num_fewshot: 4
+metadata:
+  version: 3.0
