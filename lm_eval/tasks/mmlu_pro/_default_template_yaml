@@ -17,6 +17,8 @@ filter_list:
       - function: "take_first"
 generation_kwargs:
   until:
+    - "Question:"
+    - "Question:\n"
     - "</s>"
     - "Q:"
     - "<|im_end|>"

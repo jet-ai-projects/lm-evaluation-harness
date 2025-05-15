@@ -26,7 +26,7 @@ generation_kwargs:
     - "</s>"
     - "<|im_end|>"
   do_sample: false
-  temperature: 0.0
+  temperature: 1.0
 repeats: 1
 num_fewshot: 4
 filter_list:
