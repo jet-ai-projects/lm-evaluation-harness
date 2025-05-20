@@ -26,10 +26,7 @@ from lm_eval.evaluator_utils import (
 )
 from lm_eval.loggers import EvaluationTracker
 from lm_eval.loggers.utils import add_env_info, add_tokenizer_info, get_git_commit_hash
-from lm_eval.tasks import (
-    TaskManager,
-    get_task_dict,
-)
+from lm_eval.tasks import TaskManager, get_task_dict
 from lm_eval.utils import (
     handle_non_serializable,
     hash_string,
@@ -60,6 +57,7 @@ def simple_evaluate(
     rewrite_requests_cache: bool = False,
     delete_requests_cache: bool = False,
     limit: Optional[Union[int, float]] = None,
+    samples: Optional[dict] = None,
     bootstrap_iters: int = 100000,
     check_integrity: bool = False,
     write_out: bool = False,
@@ -109,6 +107,8 @@ def simple_evaluate(
         Deletes all the request cache if set to `True`. `None` if not desired.
     :param limit: int or float, optional
         Limit the number of examples per task (only use this for testing), If <1, limit is a percentage of the total number of examples.
+    :param samples: dictionary, optional
+        Dictionary indicating which examples should be tested in each task, e.g., {"mmlu_astronomy":[0,3,6],"mmlu_anatomy":[1,4,7,10]}.
     :param bootstrap_iters:
         Number of iterations for bootstrap statistics, used when calculating stderrs. set to 0 for no stderr calculations to be performed.
     :param check_integrity: bool
@@ -150,6 +150,11 @@ def simple_evaluate(
     if verbosity is not None:
         setup_logging(verbosity=verbosity)
     start_date = time.time()
+
+    if limit is not None and samples is not None:
+        raise ValueError(
+            "Either 'limit' or 'samples' must be None, but both are not None."
+        )
 
     if isinstance(model_args, str) and (
         "instruct" in model_args and not apply_chat_template
@@ -336,6 +341,7 @@ def simple_evaluate(
         lm=lm,
         task_dict=task_dict,
         limit=limit,
+        samples=samples,
         cache_requests=cache_requests,
         rewrite_requests_cache=rewrite_requests_cache,
         bootstrap_iters=bootstrap_iters,
@@ -347,8 +353,8 @@ def simple_evaluate(
         verbosity=verbosity,
         confirm_run_unsafe_code=confirm_run_unsafe_code,
     )
-    if verbosity is not None:
-        setup_logging(verbosity=verbosity)
+    # if verbosity is not None:
+    #     lm_eval.setup_logging(verbosity=verbosity)
 
     if lm.rank == 0:
         if isinstance(model, str):
@@ -402,6 +408,7 @@ def evaluate(
     lm: "LM",
     task_dict,
     limit: Optional[int] = None,
+    samples: Optional[dict] = None,
     cache_requests: bool = False,
     rewrite_requests_cache: bool = False,
     bootstrap_iters: Optional[int] = 100000,
@@ -421,6 +428,8 @@ def evaluate(
         Dictionary of tasks. Tasks will be taken to have name type(task).config.task .
     :param limit: int, optional
         Limit the number of examples per task (only use this for testing)
+    :param samples: dictionary, optional
+        Dictionary indicating which examples should be tested in each task, e.g., {"mmlu_astronomy":[0,3,6],"mmlu_anatomy":[1,4,7,10]}.
     :param cache_requests: bool, optional
         Speed up evaluation by caching the building of dataset requests.
     :param rewrite_requests_cache: bool, optional
@@ -448,11 +457,16 @@ def evaluate(
         Dictionary of results
     """
 
+    if limit is not None and samples is not None:
+        raise ValueError(
+            "Either 'limit' or 'samples' must be None, but both are not None."
+        )
+    if samples is not None:
+        eval_logger.info(f"Evaluating examples for tasks {list(samples.keys())}")
     if apply_chat_template:
         eval_logger.warning(
             "Chat template formatting change affects loglikelihood and multiple-choice tasks. See docs/chat-template-readme.md for details."
         )
-
     # tracks all Instances/requests a model must generate output on.
     requests = defaultdict(list)
     # stores the amount to pad out reqs per req. type so that
@@ -502,6 +516,9 @@ def evaluate(
         limits.append(limit)
         task.build_all_requests(
             limit=limit,
+            samples=samples.get(task_output.task_name, None)
+            if samples is not None
+            else samples,
             rank=lm.rank,
             world_size=lm.world_size,
             cache_requests=cache_requests,
@@ -585,10 +602,22 @@ def evaluate(
             instances.sort(key=lambda x: x.idx)
         # iterate over different filters used
         for filter_key in task.instances[0].filtered_resps.keys():
+            indices = (
+                samples.get(task_output.task_name, None)
+                if samples is not None
+                else None
+            )
             doc_iterator = task.doc_iterator(
-                rank=RANK, limit=limit, world_size=WORLD_SIZE
+                rank=RANK,
+                limit=limit,
+                world_size=WORLD_SIZE,
+                samples=indices,
             )
             for doc_id, doc in doc_iterator:
+                if indices:
+                    doc_id_true = indices[doc_id]
+                else:
+                    doc_id_true = doc_id
                 requests = instances_by_doc_id[doc_id]
                 metrics = task.process_results(
                     doc, [req.filtered_resps[filter_key] for req in requests]
@@ -596,7 +625,7 @@ def evaluate(
                 if log_samples:
                     target = task.doc_to_target(doc)
                     example = {
-                        "doc_id": doc_id,
+                        "doc_id": doc_id_true,
                         "doc": doc,
                         "target": target,
                         "arguments": [req.args for req in requests],
