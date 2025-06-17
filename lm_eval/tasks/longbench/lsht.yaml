@@ -11,7 +11,7 @@ process_results: !function metrics.classification_score
 generation_kwargs:
   max_gen_toks: 64
   temperature: 1
-  do_sample: True
+  do_sample: False
   until: ['\n']
 metric_list:
   - metric: "classification_score"

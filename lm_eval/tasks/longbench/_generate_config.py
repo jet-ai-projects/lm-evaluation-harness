@@ -185,7 +185,7 @@ if __name__ == "__main__":
         generation_kwargs = {
             "max_gen_toks": dataset2maxlen[df],
             "temperature": 1,
-            "do_sample": True,
+            "do_sample": False,
             "until": until,
         }
         raw_doc_to_text = (

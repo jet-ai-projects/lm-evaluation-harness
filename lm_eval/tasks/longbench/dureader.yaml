@@ -10,7 +10,7 @@ doc_to_target: '{{answers[0]}}'
 generation_kwargs:
   max_gen_toks: 128
   temperature: 1
-  do_sample: True
+  do_sample: False
   until: []
 metric_list:
   - metric: !function metrics.rouge_zh_score
