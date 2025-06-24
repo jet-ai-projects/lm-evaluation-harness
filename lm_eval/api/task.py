@@ -75,6 +75,7 @@ class TaskConfig(dict):
     process_docs: Optional[Callable] = None
     doc_to_text: Optional[Union[Callable, str]] = None
     doc_to_target: Optional[Union[Callable, str]] = None
+    multi_target_gather: Optional[str] = None
     doc_to_image: Union[Callable, str] = None
     doc_to_audio: Union[Callable, str] = None
     unsafe_code: bool = False
@@ -1716,10 +1717,14 @@ class ConfigurableTask(Task):
                                 # TODO: this handles the case where HF evaluate returns a dict.
                                 result_score = result_score[metric]
                             scores.append(result_score)
-                        if any(scores):
-                            result_score = 1.0
+                        
+                        if self.config.multi_target_gather == "max":
+                            result_score = max(scores)
                         else:
-                            result_score = 0.0
+                            if any(scores):
+                                result_score = 1.0
+                            else:
+                                result_score = 0.0
                 else:
                     try:
                         result_score = self._metric_fn_list[metric](
