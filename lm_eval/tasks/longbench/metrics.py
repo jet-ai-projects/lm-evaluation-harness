@@ -161,8 +161,9 @@ def rouge_score(predictions: list[str], references: list[str], **kwargs) -> floa
     
     prediction = predictions[0]
     score = 0
-    for ground_truth in references:
-        score = max(score, rouge.get_scores([prediction], [ground_truth], avg=True)["rouge-l"]["f"])
+    if len(prediction.strip()) > 0 and len(prediction.strip(".")) > 0:
+        for ground_truth in references:
+            score = max(score, rouge.get_scores([prediction], [ground_truth], avg=True)["rouge-l"]["f"])
     return score
 
 
