@@ -359,7 +359,10 @@ class TemplateLM(LM):
             context_enc = self.tok_encode(context)
 
             context_enc_len = len(context_enc)
-            continuation_enc = whole_enc[context_enc_len:]
+            if len(whole_enc) == context_enc_len:
+                continuation_enc = self.tok_encode(continuation, add_special_tokens=False)
+            else:
+                continuation_enc = whole_enc[context_enc_len:]
 
         return context_enc, continuation_enc
 

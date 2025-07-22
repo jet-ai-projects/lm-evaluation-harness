@@ -1,0 +1,17 @@
+group: hendrycks_math_ppl
+task:
+  - hendrycks_math_algebra_ppl
+  - hendrycks_math_counting_and_prob_ppl
+  - hendrycks_math_geometry_ppl
+  - hendrycks_math_intermediate_algebra_ppl
+  - hendrycks_math_num_theory_ppl
+  - hendrycks_math_prealgebra_ppl
+  - hendrycks_math_precalc_ppl
+aggregate_metric_list:
+  - metric: perplexity
+    aggregation: mean
+    weight_by_size: true
+metadata:
+  version: 1.0
+
+num_fewshot: 4

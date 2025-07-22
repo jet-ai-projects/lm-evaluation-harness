@@ -1,0 +1,3 @@
+include: hendrycks_math_algebra_ppl.yaml
+dataset_name: prealgebra
+task: hendrycks_math_prealgebra_ppl

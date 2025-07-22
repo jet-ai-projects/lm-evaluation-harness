@@ -46,7 +46,7 @@ class SWDE(ConfigurableTask):
             language description, as well as the few shot examples, and the question
             part of the document for `doc`.
         """
-
+        apply_chat_template = kwargs.pop("apply_chat_template", False)
         return [
             Instance(
                 request_type="generate_until",

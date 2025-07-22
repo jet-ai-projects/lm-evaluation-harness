@@ -25,10 +25,12 @@ filter_list:
       - function: "take_first"
 generation_kwargs:
   until:
+    - "\n\n"
     - "</s>"
     - "Question:"
     - "<|im_end|>"
   temperature: 0.0
+  max_new_tokens: 32
 metric_list:
   - metric: exact_match
     aggregation: mean

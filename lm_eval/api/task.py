@@ -75,6 +75,7 @@ class TaskConfig(dict):
     process_docs: Optional[Callable] = None
     doc_to_text: Optional[Union[Callable, str]] = None
     doc_to_target: Optional[Union[Callable, str]] = None
+    multi_target_gather: Optional[str] = None
     doc_to_image: Union[Callable, str] = None
     doc_to_audio: Union[Callable, str] = None
     unsafe_code: bool = False
@@ -1587,7 +1588,8 @@ class ConfigurableTask(Task):
                 lls = lls[::2]
 
             pred = np.argmax(lls)
-            pred_norm = np.argmax(lls / completion_len)
+            lls_norm = lls / completion_len
+            pred_norm = np.argmax(lls_norm)
 
             if self.multiple_input:
                 gold = self.doc_to_text(doc)
@@ -1607,6 +1609,17 @@ class ConfigurableTask(Task):
 
                 if gold == -100:
                     gold_index_error = True
+
+            if self.multiple_target:
+                gold_lls = [lls[i] for i in gold]
+                gold_lls_norm = [lls_norm[i] for i in gold]
+                gold_loss = -np.mean(gold_lls)
+                gold_loss_norm = -np.mean(gold_lls_norm)
+            else:
+                gold_ll = lls[gold]
+                gold_ll_norm = lls_norm[gold]
+                gold_loss = -gold_ll
+                gold_loss_norm = -gold_ll_norm
 
             if gold_index_error:
                 eval_logger.warning(
@@ -1629,6 +1642,8 @@ class ConfigurableTask(Task):
             # TODO use keyword arguments to the metric?
             # gold, pred, norm stuff, the original lls,
             result_dict = {
+                **({"gold_loss": gold_loss} if "gold_loss" in use_metric else {}),
+                **({"gold_loss_norm": gold_loss_norm} if "gold_loss_norm" in use_metric else {}),
                 **({"acc": acc} if "acc" in use_metric else {}),
                 **({"f1": (gold, pred)} if "f1" in use_metric else {}),
                 **({"mcc": (gold, pred)} if "mcc" in use_metric else {}),
@@ -1702,10 +1717,14 @@ class ConfigurableTask(Task):
                                 # TODO: this handles the case where HF evaluate returns a dict.
                                 result_score = result_score[metric]
                             scores.append(result_score)
-                        if any(scores):
-                            result_score = 1.0
+                        
+                        if self.config.multi_target_gather == "max":
+                            result_score = max(scores)
                         else:
-                            result_score = 0.0
+                            if any(scores):
+                                result_score = 1.0
+                            else:
+                                result_score = 0.0
                 else:
                     try:
                         result_score = self._metric_fn_list[metric](

@@ -13,3 +13,15 @@ aggregate_metric_list:
     weight_by_size: true
 metadata:
   version: 1.0
+generation_kwargs:
+  until:
+    - "\n\n"
+    - "Question:"
+    - "Problem:"
+    - "</s>"
+    - "<|im_end|>"
+  do_sample: false
+  temperature: 0.0
+  max_new_tokens: 32
+
+num_fewshot: 4

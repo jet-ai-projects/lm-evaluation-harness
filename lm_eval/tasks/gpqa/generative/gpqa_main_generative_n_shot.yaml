@@ -2,3 +2,4 @@
 dataset_name: gpqa_main
 include: _gpqa_generative_n_shot_yaml
 task: gpqa_main_generative_n_shot
+num_fewshot: 5
