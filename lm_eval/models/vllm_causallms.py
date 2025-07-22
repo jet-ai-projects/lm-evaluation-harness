@@ -10,6 +10,7 @@ from queue import Empty
 from time import sleep
 from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple, Union
 
+import jinja2
 from more_itertools import distribute
 from packaging.version import parse as parse_version
 from tqdm import tqdm
@@ -21,6 +22,7 @@ from lm_eval.models.utils import (
     Collator,
     configure_pad_token,
     handle_stop_sequences,
+    postprocess_generated_text,
     undistribute,
 )
 from lm_eval.utils import (
@@ -132,7 +134,11 @@ class VLLM(TemplateLM):
         device: str = "cuda",
         data_parallel_size: int = 1,
         lora_local_path: str = None,
-        enable_thinking: bool = False,
+        # VLLM: enable thinking tags in the prompt.
+        enable_thinking: bool = True,
+        # End marker for thinking tags - splits to get response after this token (if provided).
+        think_end_token: Optional[str] = None,
+        max_lora_rank: int = 16,
         **kwargs,
     ):
         super().__init__()
@@ -146,6 +152,7 @@ class VLLM(TemplateLM):
         assert max_length is None or max_model_len is None, (
             "Either max_length or max_model_len may be provided, but not both"
         )
+        self.think_end_token = think_end_token
         self.V1 = os.environ.get("VLLM_USE_V1", "1") != "0"
         self._max_length = max_model_len if max_model_len is not None else max_length
         self.tensor_parallel_size = int(tensor_parallel_size)
@@ -166,6 +173,8 @@ class VLLM(TemplateLM):
             "quantization": quantization,
             "seed": int(seed),
             "device": str(device),
+            "enable_lora": True if lora_local_path else False,
+            "max_lora_rank": int(max_lora_rank),
         }
         self.model_args.update(kwargs)
         self.batch_size = (
@@ -216,9 +225,17 @@ class VLLM(TemplateLM):
             }
 
             if parse_version(version("vllm")) >= parse_version("0.9.0"):
-                kwargs_resolve_hf_chat_template["model_config"] = (
-                    self.model.llm_engine.model_config
-                )
+                if self.data_parallel_size <= 1:
+                    kwargs_resolve_hf_chat_template["model_config"] = (
+                        self.model.llm_engine.model_config
+                    )
+                else:
+                    from vllm.engine.arg_utils import EngineArgs
+
+                    engine_args = EngineArgs(**self.model_args)
+                    model_config = engine_args.create_model_config()
+
+                    kwargs_resolve_hf_chat_template["model_config"] = model_config
 
             # https://github.com/vllm-project/vllm/pull/18259
             if (
@@ -292,14 +309,27 @@ class VLLM(TemplateLM):
         """
         Method to apply a chat template to a list of chat history between user and model.
         """
-        chat_templated = self.tokenizer.apply_chat_template(
-            chat_history,
-            tokenize=False,
-            add_generation_prompt=add_generation_prompt,
-            continue_final_message=not add_generation_prompt,
-            chat_template=self.hf_chat_template,
-            enable_thinking=self.enable_thinking,
-        )
+        try:
+            chat_templated = self.tokenizer.apply_chat_template(
+                chat_history,
+                tokenize=False,
+                add_generation_prompt=add_generation_prompt,
+                continue_final_message=not add_generation_prompt,
+                chat_template=self.hf_chat_template,
+                enable_thinking=self.enable_thinking,
+            )
+        except jinja2.exceptions.TemplateError:
+            eval_logger.warning(
+                "Failed to apply chat template. removing the system role in chat history."
+            )
+            chat_templated = self.tokenizer.apply_chat_template(
+                [msg for msg in chat_history if msg["role"] != "system"],
+                tokenize=False,
+                add_generation_prompt=add_generation_prompt,
+                continue_final_message=not add_generation_prompt,
+                chat_template=self.hf_chat_template,
+                enable_thinking=self.enable_thinking,
+            )
 
         return chat_templated
 
@@ -605,7 +635,11 @@ class VLLM(TemplateLM):
 
             # cache generations
             for output, context in zip(cont, context):
-                generated_text = output.outputs[0].text
+                generated_text: str = output.outputs[0].text
+                # use secondary stop seqs to cut off should-have-been-stopped content post-hoc
+                generated_text = postprocess_generated_text(
+                    generated_text, until, self.think_end_token
+                )
                 res.append(generated_text)
                 self.cache_hook.add_partial(
                     "generate_until", (context, gen_kwargs), generated_text
