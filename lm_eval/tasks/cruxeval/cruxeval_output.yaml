@@ -1,0 +1,18 @@
+include: _default_template_yaml
+task: cruxeval_output
+doc_to_text: !function utils.make_direct_output_prompt
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+    mode: output
+  - metric: !function utils.pass_at_5
+    aggregation: mean
+    higher_is_better: true
+    mode: output
+filter_list:
+  - name: "default"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.postprocess_output
+        

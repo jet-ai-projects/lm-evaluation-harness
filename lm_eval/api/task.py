@@ -455,6 +455,7 @@ class Task(abc.ABC):
         for doc_id, doc in tqdm(
             doc_id_docs,
             total=num_docs,
+            desc= f"Building contexts for {self.config.task} on rank {rank}",
         ):
             # sample fewshot context #TODO: need to offset doc_id by rank now!
             fewshot_ctx = self.fewshot_context(

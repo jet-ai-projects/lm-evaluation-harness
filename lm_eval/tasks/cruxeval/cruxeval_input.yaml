@@ -1,0 +1,17 @@
+include: _default_template_yaml
+task: cruxeval_input
+doc_to_text: !function utils.make_direct_input_prompt
+metric_list:
+  - metric: !function utils.pass_at_1
+    aggregation: mean
+    higher_is_better: true
+    mode: input
+  - metric: !function utils.pass_at_5
+    aggregation: mean
+    higher_is_better: true
+    mode: input
+filter_list:
+  - name: "default"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.postprocess_input
