@@ -1,7 +1,6 @@
 include: _default_template_yaml
 task: cruxeval_input
 doc_to_text: !function utils.make_direct_input_prompt
-repeats: 10
 metric_list:
   - metric: !function utils.pass_at_1
     aggregation: mean

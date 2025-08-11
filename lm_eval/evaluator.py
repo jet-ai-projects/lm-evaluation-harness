@@ -3,15 +3,16 @@ import json
 import logging
 import random
 import time
+import tqdm
+import multiprocessing
 from collections import defaultdict
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import numpy as np
 import torch
+import torch.distributed as dist
 
-import lm_eval.api.metrics
 import lm_eval.api.registry
-import lm_eval.api.task
 import lm_eval.models
 from lm_eval.caching.cache import delete_cache
 from lm_eval.evaluator_utils import (
@@ -400,7 +401,10 @@ def simple_evaluate(
         else:
             return results
     else:
-        return None
+        if return_runtime_cache:
+            return None, {"task_dict": task_dict, "task_manager": task_manager}
+        else:
+            return None
 
 
 @positional_deprecated
@@ -545,9 +549,9 @@ def evaluate(
 
         if lm.world_size > 1:
             instances_rnk = torch.tensor(len(task._instances), device=lm.device)
-            gathered_item = (
-                lm.accelerator.gather(instances_rnk).cpu().detach().numpy().tolist()
-            )
+            gathered_instances_rnk = [torch.empty_like(instances_rnk) for _ in range(lm.world_size)]
+            dist.all_gather(gathered_instances_rnk, instances_rnk)
+            gathered_item = [x.cpu().detach().numpy().tolist() for x in gathered_instances_rnk]
             # "multiple_choice" task types dispatch (several) "loglikelihood" request types
             reqtype = (
                 "loglikelihood"
@@ -580,7 +584,7 @@ def evaluate(
             req.resps.append(x)
 
         if lm.world_size > 1:
-            lm.accelerator.wait_for_everyone()
+            dist.barrier()  # wait for all ranks to finish processing requests
 
     RANK = lm.rank
     WORLD_SIZE = lm.world_size
@@ -601,12 +605,19 @@ def evaluate(
         for instances in instances_by_doc_id.values():
             instances.sort(key=lambda x: x.idx)
         # iterate over different filters used
+        n = limit if limit is not None else len(task.eval_docs)
         for filter_key in task.instances[0].filtered_resps.keys():
             indices = (
                 samples.get(task_output.task_name, None)
                 if samples is not None
                 else None
             )
+            pbar = tqdm.tqdm(
+                total=n,
+                desc=f"Processing {task_output.task_name} results for {filter_key} filter",
+                disable=(RANK != 0),
+            )
+            num_samples_processed = 0
             doc_iterator = task.doc_iterator(
                 rank=RANK,
                 limit=limit,
@@ -643,13 +654,18 @@ def evaluate(
                                 ensure_ascii=False,
                             )
                         ),
-                        "prompt_hash": hash_string(requests[0].arguments[0]),
-                        "target_hash": hash_string(str(target)),
+                        # "prompt_hash": hash_string(requests[0].arguments[0]),
+                        # "target_hash": hash_string(str(target)),
                     }
                     example.update(metrics)
                     task_output.logged_samples.append(example)
                 for metric, value in metrics.items():
                     task_output.sample_metrics[(metric, filter_key)].append(value)
+
+                delta_samples_processed = min(WORLD_SIZE, n - num_samples_processed)
+                pbar.update(delta_samples_processed)
+                num_samples_processed += delta_samples_processed
+            pbar.close()
 
     if WORLD_SIZE > 1:
         # if multigpu, then gather data across all ranks to rank 0
@@ -658,7 +674,7 @@ def evaluate(
             if log_samples:
                 # for task_name, task_samples in list(samples.items()):
                 full_samples = [None] * WORLD_SIZE if RANK == 0 else None
-                torch.distributed.gather_object(
+                dist.gather_object(
                     obj=task_output.logged_samples,
                     object_gather_list=full_samples,
                     dst=0,
@@ -672,7 +688,7 @@ def evaluate(
             # then collect metrics across all ranks
             for metrics in task_output.sample_metrics:
                 metric_list = [None] * WORLD_SIZE if RANK == 0 else None
-                torch.distributed.gather_object(
+                dist.gather_object(
                     obj=task_output.sample_metrics[metrics],
                     object_gather_list=metric_list,
                     dst=0,

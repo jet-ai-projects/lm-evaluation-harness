@@ -1,7 +1,6 @@
 include: _default_template_yaml
 task: cruxeval_input_cot
 doc_to_text: !function utils.make_cot_input_prompt
-repeats: 10
 metric_list:
   - metric: !function utils.pass_at_1
     aggregation: mean

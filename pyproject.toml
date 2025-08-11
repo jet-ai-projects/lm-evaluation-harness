@@ -39,6 +39,10 @@ dependencies = [
     "dill",
     "word2number",
     "more_itertools",
+    "appdirs",
+    "tempdir"
+    "wget",
+    "evalplus
 ]
 
 [tool.setuptools.packages.find]

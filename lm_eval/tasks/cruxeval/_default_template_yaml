@@ -2,11 +2,15 @@ dataset_path: cruxeval-org/cruxeval
 unsafe_code: true
 output_type: generate_until
 test_split: test
+repeats: 10
 doc_to_target: !function utils.doc_to_target
 generation_kwargs:
   until:
     - "[/ANSWER]"
+    - "[/ANSWER]\n"
+    - "[/ANSWER]\n\n"
   do_sample: true
   temperature: 0.2
+  top_p: 0.95
 metadata:
   version: 1.0
