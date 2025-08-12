@@ -40,9 +40,9 @@ dependencies = [
     "word2number",
     "more_itertools",
     "appdirs",
-    "tempdir"
+    "tempdir",
     "wget",
-    "evalplus
+    "evalplus"
 ]
 
 [tool.setuptools.packages.find]
