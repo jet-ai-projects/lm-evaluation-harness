@@ -1,0 +1,9 @@
+group: longbench_summarization
+group_alias: summarization
+task:
+  - longbench_summarization_tasks
+aggregate_metric_list:
+  - metric: score
+    weight_by_size: False
+metadata:
+  version: 2

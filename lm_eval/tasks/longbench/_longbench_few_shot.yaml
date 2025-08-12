@@ -1,0 +1,9 @@
+group: longbench_few_shot
+group_alias: few_shot
+task:
+  - longbench_few_shot_tasks
+aggregate_metric_list:
+  - metric: score
+    weight_by_size: False
+metadata:
+  version: 2

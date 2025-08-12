@@ -151,7 +151,7 @@ def classification_score(doc: dict, results: list[str], **kwargs) -> dict:
                 em_match_list.remove(match_term)
         if ground_truth in em_match_list:
             score = max(score, 1.0 / len(em_match_list))
-    return {"classification_score": score}
+    return {"score": score}
 
 
 def rouge_score(predictions: list[str], references: list[str], **kwargs) -> float:
@@ -203,6 +203,22 @@ def qa_f1_score(predictions: list[str], references: list[str], **kwargs) -> floa
 
     return score
 
+
+def score(predictions: list[str], references: list[str], score_type, **kwargs) -> float:
+    if score_type == "qa_f1_score":
+        return qa_f1_score(predictions, references, **kwargs)
+    elif score_type == "count_score":
+        return count_score(predictions, references, **kwargs)
+    elif score_type == "retrieval_score":
+        return retrieval_score(predictions, references, **kwargs)
+    elif score_type == "code_sim_score":
+        return code_sim_score(predictions, references, **kwargs)
+    elif score_type == "rouge_score":
+        return rouge_score(predictions, references, **kwargs)
+    elif score_type == "f1_score":
+        return f1_score(predictions, references, **kwargs)
+    else:
+        raise ValueError(f"Unknown score type: {score_type}")
 
 # def qa_f1_zh_score(predictions: list[str], references: list[str], **kwargs) -> float:
 #     prediction, ground_truth = predictions[0], references[0]

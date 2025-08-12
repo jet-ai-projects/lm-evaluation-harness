@@ -1,6 +1,6 @@
 
 tag:
-  - longbench
+  - longbench_few_shot_tasks
 task: longbench_trec
 dataset_path: THUDM/LongBench
 test_split: test
@@ -15,8 +15,10 @@ generation_kwargs:
   do_sample: False
   until: ["\n"]
 metric_list:
-  - metric: "classification_score"
+  - metric: score
     aggregation: mean
     higher_is_better: True
 metadata:
   version: 2.0
+dataset_kwargs:
+  trust_remote_code: True

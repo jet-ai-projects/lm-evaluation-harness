@@ -1,0 +1,9 @@
+group: longbench_code
+group_alias: code
+task:
+  - longbench_code_tasks
+aggregate_metric_list:
+  - metric: score
+    weight_by_size: False
+metadata:
+  version: 2

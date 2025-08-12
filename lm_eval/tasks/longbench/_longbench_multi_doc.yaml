@@ -1,0 +1,9 @@
+group: longbench_multi_doc
+group_alias: multi_doc
+task:
+  - longbench_multi_doc_tasks
+aggregate_metric_list:
+  - metric: score
+    weight_by_size: False
+metadata:
+  version: 2
