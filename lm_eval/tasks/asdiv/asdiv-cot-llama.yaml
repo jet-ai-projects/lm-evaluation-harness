@@ -84,5 +84,3 @@ validation_split: validation
 test_split: validation
 should_decontaminate: true
 doc_to_decontamination_query: "{{body}} {{question}}"
-dataset_kwargs:
-  trust_remote_code: true
