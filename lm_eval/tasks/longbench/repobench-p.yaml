@@ -2,7 +2,7 @@
 tag:
   - longbench_code_tasks
 task: longbench_repobench-p
-dataset_path: THUDM/LongBench
+dataset_path: jet-ai/longbench
 test_split: test
 dataset_name: repobench-p
 doc_to_text: "Please complete the code given below. \n{{context}}{{input}}Next line of code:\n"
